@@ -1,57 +1,88 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-contract SimpleStorage {
-    // State variable to store the number
-    uint256 private storedNumber;
+contract SimpleToken {
+    string public name = "SimpleToken";
+    string public symbol = "STK";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
 
-    // Address of the contract owner
-    address public owner;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    // Event to log changes to the stored number
-    event NumberUpdated(uint256 newNumber);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
-    // Constructor to set the contract owner
-    constructor() {
-        owner = msg.sender;
+    constructor(uint256 _initialSupply) {
+        require(_initialSupply > 0, "Initial supply must be greater than zero");
+        totalSupply = _initialSupply * 10 ** uint256(decimals);
+        balanceOf[msg.sender] = totalSupply;
     }
 
-    // Modifier to restrict access to the owner
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can call this function.");
-        _;
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid address");
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
+
+        balanceOf[msg.sender] -= _value;
+        balanceOf[_to] += _value;
+
+        emit Transfer(msg.sender, _to, _value);
+
+        // Using assert to check for invariants, should never fail if the code is correct
+        assert(balanceOf[msg.sender] + balanceOf[_to] == totalSupply);
+
+        return true;
     }
 
-    // Function to set a new number
-    function setNumber(uint256 newNumber) public onlyOwner {
-        // Use require() to ensure the new number is valid
-        require(newNumber >= 0, "Number must be non-negative.");
+    function approve(address _spender, uint256 _value) public returns (bool success) {
+        require(_spender != address(0), "Invalid address");
 
-        // Update the stored number
-        storedNumber = newNumber;
+        allowance[msg.sender][_spender] = _value;
 
-        // Use assert() to ensure that the number was set correctly
-        // This is a simple assertion, assuming no other changes would affect storedNumber
-        assert(storedNumber == newNumber);
+        emit Approval(msg.sender, _spender, _value);
 
-        // Emit an event to log the update
-        emit NumberUpdated(newNumber);
+        return true;
     }
 
-    // Function to get the stored number
-    function getNumber() public view returns (uint256) {
-        return storedNumber;
+    function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid address");
+        require(balanceOf[_from] >= _value, "Insufficient balance");
+        require(allowance[_from][msg.sender] >= _value, "Allowance exceeded");
+
+        balanceOf[_from] -= _value;
+        balanceOf[_to] += _value;
+        allowance[_from][msg.sender] -= _value;
+
+        emit Transfer(_from, _to, _value);
+
+        // Using assert to check for invariants, should never fail if the code is correct
+        assert(balanceOf[_from] + balanceOf[_to] == totalSupply);
+        assert(allowance[_from][msg.sender] >= 0); // Check for underflow
+
+        return true;
     }
 
-    // Function to demonstrate explicit use of revert()
-    function setNumberWithRevert(uint256 newNumber) public onlyOwner {
-        if (newNumber < 0) {
-            revert("Number must be non-negative.");
-        }
-        // Update the stored number
-        storedNumber = newNumber;
+    function burn(uint256 _value) public returns (bool success) {
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance to burn");
 
-        // Emit an event to log the update
-        emit NumberUpdated(newNumber);
+        balanceOf[msg.sender] -= _value;
+        totalSupply -= _value;
+
+        emit Transfer(msg.sender, address(0), _value);
+
+        // Using assert to check for invariants, should never fail if the code is correct
+        assert(balanceOf[msg.sender] + totalSupply == totalSupply);
+
+        return true;
+    }
+
+    function mint(uint256 _value) public {
+        // Using revert to control who can mint tokens
+        require(msg.sender == address(0x1234567890123456789012345678901234567890), "Unauthorized");
+
+        totalSupply += _value;
+        balanceOf[msg.sender] += _value;
+
+        emit Transfer(address(0), msg.sender, _value);
     }
 }
